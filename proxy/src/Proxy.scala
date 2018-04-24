@@ -26,9 +26,11 @@ object Proxy extends App {
       extractUri { uri =>
         extractRequest { request =>
           get {
-            onSuccess(Http().singleRequest(Get(uri.withHost("www.dhamma.org").withScheme("https"))))
-//            onSuccess(Http().singleRequest(request.withUri(uri.withHost("www.dhamma.org").withScheme("https").withPort(0)).trace))
-              {response => complete(response)}
+            onSuccess(Http().singleRequest(Get(uri.withHost("www.dhamma.org").withScheme("https")))) { response =>
+              onSuccess(response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)) { data =>
+                complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, data))
+              }
+            }
           }
         }
       }
