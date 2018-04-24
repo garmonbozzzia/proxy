@@ -8,6 +8,8 @@ import scala.io.StdIn
 import akka.http.scaladsl.client.RequestBuilding.Get
 import akka.util.ByteString
 
+import scala.concurrent.Future
+
 //80.211.27.151/ru/schedules/schdullabha
 object Proxy extends App {
   implicit class Traceable[A] (val obj: A) extends AnyVal {
@@ -21,20 +23,33 @@ object Proxy extends App {
   // needed for the future flatMap/onComplete in the end
   implicit val executionContext = system.dispatcher
 
+  case class Data(bs: ByteString, ct: ContentType)
+  val cache = scala.collection.mutable.Map.empty[Uri, (Long,Data)]
+  def requestAndSave(uri: Uri) = for {
+    response <- Http().singleRequest(Get(uri))
+    data <- response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)
+    obj = Data(data, response.entity.contentType)
+    _ = cache(uri) = (System.currentTimeMillis, obj)
+  } yield obj
+
+  def cached(uri: Uri): Future[Data] = cache.get(uri).fold{
+    requestAndSave(uri)
+  }{
+    case (t, data) => if (System.currentTimeMillis - t > 5000) requestAndSave(uri) else Future.successful(data)
+  }
+
   val route =
     path(Remaining) { path =>
       extractUri { uri =>
         extractRequest { request =>
-          get {
-            onSuccess(Http().singleRequest(Get(uri.withHost("www.dhamma.org").withScheme("https")))) { response =>
-              onSuccess(response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)) { data =>
-                complete(HttpEntity(response.entity.contentType, data))
+          get {  onSuccess(cached(uri.withHost("www.dhamma.org").withScheme("https").trace)) {
+              data => complete(HttpEntity(data.ct, data.bs))
               }
             }
           }
         }
       }
-    }
+
 
   val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 80)
 
