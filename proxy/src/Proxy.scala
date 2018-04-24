@@ -34,7 +34,7 @@ object Proxy extends App {
       }
     }
 
-  val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
+  val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 80)
 
   println(s"Server online at http://localhost:8080/ru/schedules/schdullabha\nPress RETURN to stop...")
   StdIn.readLine() // let it run until user presses return
