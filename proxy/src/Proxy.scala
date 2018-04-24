@@ -8,6 +8,7 @@ import scala.io.StdIn
 import akka.http.scaladsl.client.RequestBuilding.Get
 import akka.util.ByteString
 
+//80.211.27.151/ru/schedules/schdullabha
 object Proxy extends App {
   implicit class Traceable[A] (val obj: A) extends AnyVal {
     def traceWith[B](f: A => B ): A = { println(f(obj)); obj}
@@ -25,10 +26,9 @@ object Proxy extends App {
       extractUri { uri =>
         extractRequest { request =>
           get {
-            onSuccess(Http().singleRequest(request.withUri(uri.withHost("www.dhamma.org")
-              .withScheme("https").withPort(0)).trace)) {
-              response => complete(response)
-            }
+            onSuccess(Http().singleRequest(Get(uri.withHost("www.dhamma.org").withScheme("https"))))
+//            onSuccess(Http().singleRequest(request.withUri(uri.withHost("www.dhamma.org").withScheme("https").withPort(0)).trace))
+              {response => complete(response)}
           }
         }
       }
