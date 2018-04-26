@@ -1,14 +1,15 @@
+import java.util.Calendar
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding.Get
+import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.directives.CachingDirectives.cache
 import akka.http.scaladsl.server.{RequestContext, RouteResult}
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
 
-import scala.concurrent.Future
 import scala.io.StdIn
 
 //80.211.27.151/ru/schedules/schdullabha
@@ -22,14 +23,10 @@ object Proxy extends App {
 
   implicit val system = ActorSystem("my-system")
   implicit val materializer = ActorMaterializer()
-  // needed for the future flatMap/onComplete in the end
   implicit val executionContext = system.dispatcher
 
   import akka.http.caching.LfuCache
   import akka.http.caching.scaladsl.{Cache, CachingSettings}
-  //#caching-directives-import
-  //#always-cache
-  //#cache
   import akka.http.scaladsl.server.directives.CachingDirectives._
 
   import scala.concurrent.duration._
@@ -47,27 +44,22 @@ object Proxy extends App {
     case r: RequestContext ⇒ r.request.uri
   }
 
+  def schedulePath = Get(Uri("https://www.dhamma.org/ru/schedules/schdullabha"))
 
-  val route =
-    path(Remaining) { path =>
-      extractClientIP { ip =>
-        if (path == "/ru/schedules/schdullabha") calendar.getTime.traceWith(t => s"[$t: $ip]")
-        extractUri { uri =>
-          get {
-            cache(lfuCache, keyerFunction)(
-              onSuccess(Http().singleRequest(Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0)))) {
-              response =>
-                onSuccess(response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)) {
-                  data => complete(HttpEntity(response.entity.contentType, data))
-                }
-              }
-            )
-          }
-        }
-      }
-    }
+  def load(request: HttpRequest) = for {
+    response <- Http().singleRequest(request)
+    data <- response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)
+  } yield HttpEntity(response.entity.contentType, data)
 
-  val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 8080)
+  def logText = s"[${calendar.getTime}]"
+  val route = ((path("assets") | path("favicon.ico") | path("system")) &  get &
+  cache(lfuCache, keyerFunction) & extractUri){ uri =>
+    val request = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
+    onSuccess(load(request.trace(logText))) (complete(_))
+  } ~ ((path("ru/schedules/schdullabha") | path("")) & get &
+    cache(lfuCache, keyerFunction) & onSuccess(load(schedulePath))) (complete(_))
+
+  val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 80)
 
   println(s"Server online at http://localhost:8080/ru/schedules/schdullabha\nPress RETURN to stop...")
   StdIn.readLine() // let it run until user presses return
