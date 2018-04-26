@@ -49,10 +49,10 @@ object Proxy extends App {
 
   def transformed(uri: Uri) = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
   def logText = s"[${calendar.getTime}]"
-  val route = ((path("assets") | path("favicon.ico") | path("system")) & get &
+  val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) & get &
   cache(lfuCache, keyerFunction) & extractUri){ uri =>
     onSuccess(load(transformed(uri).trace(logText))) (complete(_))
-  } ~ ((path("ru/schedules/schdullabha") | path("")) & get &
+  } ~ ((path("ru/schedules/schdullabha") | pathEndOrSingleSlash) & get &
     cache(lfuCache, keyerFunction) & onSuccess(load(schedulePath))) (complete(_)) ~
     path(RemainingPath)(path => complete(path.toString))
 
