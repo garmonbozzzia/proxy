@@ -1,9 +1,6 @@
-import java.util.Calendar
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding.Get
-import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{RequestContext, RouteResult}
@@ -12,7 +9,6 @@ import akka.util.ByteString
 
 import scala.io.StdIn
 
-//80.211.27.151/ru/schedules/schdullabha
 object Proxy extends App {
   val calendar = java.util.Calendar.getInstance
   implicit class Traceable[A] (val obj: A) extends AnyVal {
