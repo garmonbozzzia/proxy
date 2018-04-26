@@ -51,15 +51,15 @@ object Proxy extends App {
     data <- response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)
   } yield HttpEntity(response.entity.contentType, data)
 
+  def transformed(uri: Uri) = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
   def logText = s"[${calendar.getTime}]"
   val route = ((path("assets") | path("favicon.ico") | path("system")) &  get &
   cache(lfuCache, keyerFunction) & extractUri){ uri =>
-    val request = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
-    onSuccess(load(request.trace(logText))) (complete(_))
+    onSuccess(load(transformed(uri).trace(logText))) (complete(_))
   } ~ ((path("ru/schedules/schdullabha") | path("")) & get &
     cache(lfuCache, keyerFunction) & onSuccess(load(schedulePath))) (complete(_))
 
-  val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 80)
+  val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", args.lift(0).fold(80)(_.toInt))
 
   println(s"Server online at http://localhost:8080/ru/schedules/schdullabha\nPress RETURN to stop...")
   StdIn.readLine() // let it run until user presses return
