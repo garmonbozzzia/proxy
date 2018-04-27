@@ -4,9 +4,11 @@ import akka.http.scaladsl.client.RequestBuilding.Get
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{RequestContext, RouteResult}
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, ThrottleMode}
+import akka.stream.scaladsl.Source
 import akka.util.ByteString
 
+import scala.concurrent.Future
 import scala.io.StdIn
 
 object Proxy extends App {
@@ -29,8 +31,8 @@ object Proxy extends App {
   val defaultCachingSettings = CachingSettings(system)
   val lfuCacheSettings = defaultCachingSettings
     .lfuCacheSettings
-    .withInitialCapacity(25)
-    .withMaxCapacity(50)
+    .withInitialCapacity(10)
+    .withMaxCapacity(10)
     .withTimeToLive(20.seconds)
     .withTimeToIdle(10.seconds)
   val cachingSettings = defaultCachingSettings.withLfuCacheSettings(lfuCacheSettings)
@@ -41,12 +43,13 @@ object Proxy extends App {
 
   def schedulePath = Get(Uri("https://www.dhamma.org/ru/schedules/schdullabha"))
 
-  def load(request: HttpRequest) = for {
-    response <- Http().singleRequest(request.trace("loading...".trace(logText)))
+  def load(request: HttpRequest): Future[HttpEntity.Strict] = for {
+    response <- Http().singleRequest(request)
     data <- response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)
   } yield HttpEntity(response.entity.contentType, data)
 
   def cch = cache(lfuCache, keyerFunction)
+  def cch2 = cache(routeCache, keyerFunction)
   def transformed(uri: Uri) = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
   def logText = s"[${java.util.Calendar.getInstance.getTime}]"
   val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) & get & extractUri){ uri =>
