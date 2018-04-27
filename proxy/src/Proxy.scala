@@ -49,15 +49,13 @@ object Proxy extends App {
   def cch = cache(lfuCache, keyerFunction)
   def transformed(uri: Uri) = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
   def logText = s"[${java.util.Calendar.getInstance.getTime}]"
-  val route =
-    (cch & (pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) &
-      get & extractUri){ uri =>
+  val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) & get & extractUri){ uri =>
     onSuccess(load(transformed(uri))) (complete(_))
-  } ~ (cch & (path("ru/schedules/schdullabha") | pathEndOrSingleSlash) & get &
-    onSuccess(load(schedulePath.trace(logText)))) (complete(_)) ~
+  } ~ ((path("ru/schedules/schdullabha") | pathEndOrSingleSlash) &
+    get & onSuccess(load(schedulePath.trace(logText)))) (complete(_)) ~
     path(RemainingPath)(path => complete(path.toString))
 
-  val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", args.lift(0).fold(80)(_.toInt))
+  val bindingFuture = Http().bindAndHandle(cch(route), "0.0.0.0", args.lift(0).fold(80)(_.toInt))
 
   println(s"Server online at http://localhost:8080/ru/schedules/schdullabha\nPress RETURN to stop...")
   StdIn.readLine() // let it run until user presses return
