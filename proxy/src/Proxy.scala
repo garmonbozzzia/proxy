@@ -10,7 +10,6 @@ import akka.util.ByteString
 import scala.io.StdIn
 
 object Proxy extends App {
-  val calendar = java.util.Calendar.getInstance
   implicit class Traceable[A] (val obj: A) extends AnyVal {
     def traceWith[B](f: A => B ): A = { println(f(obj)); obj}
     def trace[U](u: => U): A = traceWith(_ => u)
@@ -28,12 +27,12 @@ object Proxy extends App {
   import scala.concurrent.duration._
 
   val defaultCachingSettings = CachingSettings(system)
-  val lfuCacheSettings =
-    defaultCachingSettings.lfuCacheSettings
-      .withInitialCapacity(25)
-      .withMaxCapacity(50)
-      .withTimeToLive(20.seconds)
-      .withTimeToIdle(10.seconds)
+  val lfuCacheSettings = defaultCachingSettings
+    .lfuCacheSettings
+    .withInitialCapacity(25)
+    .withMaxCapacity(50)
+    .withTimeToLive(20.seconds)
+    .withTimeToIdle(10.seconds)
   val cachingSettings = defaultCachingSettings.withLfuCacheSettings(lfuCacheSettings)
   val lfuCache: Cache[Uri, RouteResult] = LfuCache(cachingSettings)
   val keyerFunction: PartialFunction[RequestContext, Uri] = {
@@ -43,18 +42,18 @@ object Proxy extends App {
   def schedulePath = Get(Uri("https://www.dhamma.org/ru/schedules/schdullabha"))
 
   def load(request: HttpRequest) = for {
-    response <- Http().singleRequest(request)
+    response <- Http().singleRequest(request.trace("loading"))
     data <- response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)
   } yield HttpEntity(response.entity.contentType, data)
 
   def transformed(uri: Uri) = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
-  def logText = s"[${calendar.getTime}]"
+  def logText = s"[${java.util.Calendar.getInstance.getTime}]"
   val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) & get &
   cache(lfuCache, keyerFunction) & extractUri){ uri =>
-    onSuccess(load(transformed(uri).trace(logText))) (complete(_))
+    onSuccess(load(transformed(uri))) (complete(_))
   } ~ ((path("ru/schedules/schdullabha") | pathEndOrSingleSlash) & get &
     cache(lfuCache, keyerFunction) & onSuccess(load(schedulePath))) (complete(_)) ~
-    path(RemainingPath)(path => complete(path.toString))
+    path(RemainingPath)(path => complete(path.toString.trace(logText)))
 
   val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", args.lift(0).fold(80)(_.toInt))
 
