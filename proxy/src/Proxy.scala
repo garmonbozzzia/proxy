@@ -42,18 +42,20 @@ object Proxy extends App {
   def schedulePath = Get(Uri("https://www.dhamma.org/ru/schedules/schdullabha"))
 
   def load(request: HttpRequest) = for {
-    response <- Http().singleRequest(request.trace("loading"))
+    response <- Http().singleRequest(request.trace("loading...".trace(logText)))
     data <- response.entity.dataBytes.runFold(ByteString.empty)(_ ++ _)
   } yield HttpEntity(response.entity.contentType, data)
 
+  def cch = cache(lfuCache, keyerFunction)
   def transformed(uri: Uri) = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
   def logText = s"[${java.util.Calendar.getInstance.getTime}]"
-  val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) & get &
-  cache(lfuCache, keyerFunction) & extractUri){ uri =>
+  val route =
+    (cch & (pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) &
+      get & extractUri){ uri =>
     onSuccess(load(transformed(uri))) (complete(_))
-  } ~ ((path("ru/schedules/schdullabha") | pathEndOrSingleSlash) & get &
-    cache(lfuCache, keyerFunction) & onSuccess(load(schedulePath))) (complete(_)) ~
-    path(RemainingPath)(path => complete(path.toString.trace(logText)))
+  } ~ (cch & (path("ru/schedules/schdullabha") | pathEndOrSingleSlash) & get &
+    onSuccess(load(schedulePath.trace(logText)))) (complete(_)) ~
+    path(RemainingPath)(path => complete(path.toString))
 
   val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", args.lift(0).fold(80)(_.toInt))
 
