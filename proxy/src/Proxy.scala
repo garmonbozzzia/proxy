@@ -54,7 +54,7 @@ object Proxy extends App {
   def logText = s"[${java.util.Calendar.getInstance.getTime}]"
   val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) & get & extractUri){ uri =>
     onSuccess(load(transformed(uri))) (complete(_))
-  } ~ ((path("ru/schedules/schdullabha") | pathEndOrSingleSlash) &
+  } ~ ((pathPrefix("ru"/"schedules"/"schdullabha") | pathEndOrSingleSlash) &
     get & onSuccess(load(schedulePath.trace(logText)))) (complete(_)) ~
     path(RemainingPath)(path => complete(path.toString))
 
