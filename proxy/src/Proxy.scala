@@ -70,9 +70,12 @@ object Proxy extends App {
     }
   }
 
-  def transformed(uri: Uri) = Get(uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
-  val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system")) & get & extractUri){ uri =>
-    onSuccess(cachedOrLoad(transformed(uri))) (complete(_))
+  def transformed(request: HttpRequest) =
+    request.withUri(request.uri.withHost("www.dhamma.org").withScheme("https").withPort(0))
+
+  val route = ((pathPrefix("assets") | path("favicon.ico") | pathPrefix("system") | pathPrefix("ru"/"maps")) &
+    get & extractRequest){ request =>
+    onSuccess(cachedOrLoad(transformed(request))) (complete(_))
   } ~ ((pathPrefix("ru"/"schedules"/"schdullabha") | pathEndOrSingleSlash) &
   get & onSuccess(cachedOrLoad(schedulePath.trace(logText), 10))) (complete(_)) ~
   path(RemainingPath)(path => complete(path.toString))

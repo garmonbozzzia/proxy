@@ -29,7 +29,7 @@ object Test extends TestSuite{
       for {
         a <- future
         b <- future
-        c <- Future
+        c <- future
         d <- future
       } yield "done"
     }
